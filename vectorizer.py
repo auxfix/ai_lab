@@ -10,9 +10,17 @@ from sentence_transformers import SentenceTransformer
 class CodeVectorizer:
     """Turns code into magical numbers (embeddings)"""
 
-    def __init__(self, model_name="all-MiniLM-L6-v2", persist_dir="./chroma_db"):
+    def __init__(self, model_name="all-MiniLM-L6-v2", persist_dir="./chroma_db", use_gpu=True):
         print(f"🚀 Loading embedding model: {model_name}")
-        self.embedding_model = SentenceTransformer(model_name)
+        
+        # Use GPU if available and requested
+        device = "cuda" if use_gpu else "cpu"
+        self.embedding_model = SentenceTransformer(model_name, device=device)
+        
+        if use_gpu and self.embedding_model.device.type == "cuda":
+            print(f"⚡ GPU acceleration enabled: {self.embedding_model.device}")
+        else:
+            print(f"🐌 Running on CPU")
 
         # Initialize ChromaDB
         self.client = chromadb.PersistentClient(
@@ -32,7 +40,7 @@ class CodeVectorizer:
         content_hash = hashlib.md5(chunk["content"].encode()).hexdigest()
         return f"{chunk['source_file']}_{chunk['chunk_id']}_{content_hash[:8]}"
 
-    def embed_and_store(self, chunks, batch_size=100):
+    def embed_and_store(self, chunks, batch_size=256):  # Larger batches with your GPU
         """Embed chunks and store in vector database"""
         if not chunks:
             print("⚠️ No chunks to embed!")

@@ -4,6 +4,11 @@ chromadb>=0.4.0
 langchain>=0.1.0
 langchain-text-splitters>=0.0.1
 
+# GPU acceleration (for your RTX 3090!)
+torch>=2.0.0
+# If you have CUDA 11.8, install with:
+# pip install torch --index-url https://download.pytorch.org/whl/cu118
+
 # LLM backends
 ollama>=0.1.0
 
@@ -15,4 +20,8 @@ streamlit>=1.28.0
 
 # Utilities
 numpy>=1.24.0
+
+# Optional: GPU monitoring in Python
+# py3nvml>=0.2.7
+# gputil>=1.4.0
 

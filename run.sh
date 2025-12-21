@@ -34,11 +34,12 @@ if command -v ollama &> /dev/null; then
     fi
     
     # Pull the model if not exists
-    if ! ollama list | grep -q "codellama:7b"; then
-        echo "📥 Downloading CodeLlama model (this may take a while - ~3.8GB)..."
-        ollama pull codellama:7b
+    if ! ollama list | grep -q "codellama:34b"; then
+        echo "📥 Downloading CodeLlama 34B model (optimized for your GPU - ~19GB)..."
+        echo "⚡ This will utilize your RTX 3090's 24GB VRAM"
+        ollama pull codellama:34b
     else
-        echo "✅ CodeLlama model already installed"
+        echo "✅ CodeLlama 34B model already installed"
     fi
 fi
 

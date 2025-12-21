@@ -29,7 +29,8 @@ class CodeRAGOrchestrator:
             return False
 
         # Step 2: Chunk code
-        chunker = SmartCodeChunker(chunk_size=800, chunk_overlap=150)
+        # Larger chunks for better context (you have plenty of RAM)
+        chunker = SmartCodeChunker(chunk_size=1500, chunk_overlap=200)
         chunks = chunker.chunk_batch(code_files)
 
         if not chunks:
@@ -37,8 +38,11 @@ class CodeRAGOrchestrator:
             return False
 
         # Step 3: Create embeddings and store
+        # Using larger, more accurate model - your GPU can handle it!
         self.vectorizer = CodeVectorizer(
-            model_name="all-MiniLM-L6-v2", persist_dir="./chroma_db"
+            model_name="sentence-transformers/all-mpnet-base-v2",  # Better quality
+            persist_dir="./chroma_db",
+            use_gpu=True  # Enable GPU acceleration
         )
 
         if reindex or self.vectorizer.get_stats()["total_chunks"] == 0:
@@ -52,7 +56,7 @@ class CodeRAGOrchestrator:
             self.engine = CodeQueryEngine(
                 vectorizer=self.vectorizer,
                 llm_backend="ollama",  # Change to "openai" if preferred
-                model="codellama:7b",  # Or "llama3:8b", "mistral:7b"
+                model="codellama:34b",  # Larger model for better quality! You have the VRAM
             )
         except Exception as e:
             print(f"⚠️ Warning: Failed to initialize LLM: {e}")

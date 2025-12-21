@@ -80,7 +80,9 @@ Answer:"""
                     prompt=prompt,
                     options={
                         "temperature": 0.7,
-                        "num_predict": 500,
+                        "num_predict": 1000,  # More tokens for detailed answers
+                        "num_ctx": 8192,  # Larger context window
+                        "num_gpu": 99,  # Use all available GPU layers
                     },
                 )
                 return response["response"]
