@@ -1,128 +1,182 @@
-import hashlib
 import json
-
-import chromadb
-import numpy as np
-from chromadb.config import Settings
-from sentence_transformers import SentenceTransformer
+from typing import Dict, List, Optional
 
 
-class CodeVectorizer:
-    """Turns code into magical numbers (embeddings)"""
+class CodeQueryEngine:
+    """Query engine that combines retrieval with LLM generation"""
 
-    def __init__(self, model_name="all-MiniLM-L6-v2", persist_dir="./chroma_db"):
-        print(f"🚀 Loading embedding model: {model_name}")
-        self.embedding_model = SentenceTransformer(model_name)
+    def __init__(self, vectorizer, llm_backend="ollama", model="codellama:7b"):
+        self.vectorizer = vectorizer
+        self.llm_backend = llm_backend
+        self.model = model
+        self._llm_client = None
 
-        # Initialize ChromaDB
-        self.client = chromadb.PersistentClient(
-            path=persist_dir, settings=Settings(anonymized_telemetry=False)
-        )
+        # Initialize LLM client based on backend
+        self._init_llm()
 
-        # Create or get collection
-        self.collection = self.client.get_or_create_collection(
-            name="codebase_rag",
-            metadata={"hnsw:space": "cosine"},  # Cosine similarity works well for code
-        )
+    def _init_llm(self):
+        """Initialize the LLM client"""
+        if self.llm_backend == "ollama":
+            try:
+                import ollama
 
-        print(f"📊 Collection ready: {self.collection.name}")
+                self._llm_client = ollama
+                # Test connection
+                try:
+                    self._llm_client.list()
+                    print(f"✅ Connected to Ollama with model: {self.model}")
+                except Exception as e:
+                    print(f"⚠️ Ollama connection issue: {e}")
+                    print("Make sure Ollama is running: ollama serve")
+            except ImportError:
+                print("❌ Ollama package not installed. Install with: pip install ollama")
+                raise
 
-    def generate_id(self, chunk):
-        """Create a unique ID for each chunk (deterministic)"""
-        content_hash = hashlib.md5(chunk["content"].encode()).hexdigest()
-        return f"{chunk['source_file']}_{chunk['chunk_id']}_{content_hash[:8]}"
+        elif self.llm_backend == "openai":
+            try:
+                import openai
 
-    def embed_and_store(self, chunks, batch_size=100):
-        """Embed chunks and store in vector database"""
-        print(f"🧠 Embedding {len(chunks)} chunks...")
+                self._llm_client = openai
+                print(f"✅ OpenAI client initialized with model: {self.model}")
+            except ImportError:
+                print("❌ OpenAI package not installed. Install with: pip install openai")
+                raise
+        else:
+            raise ValueError(f"Unsupported LLM backend: {self.llm_backend}")
 
-        # Process in batches to avoid memory issues
-        for i in range(0, len(chunks), batch_size):
-            batch = chunks[i : i + batch_size]
-            batch_ids = []
-            batch_documents = []
-            batch_metadatas = []
-            batch_embeddings = []
+    def _format_context(self, retrieved_chunks: List[Dict]) -> str:
+        """Format retrieved code chunks into context string"""
+        context_parts = []
+        for i, chunk in enumerate(retrieved_chunks, 1):
+            context_parts.append(f"### Code Snippet {i} (from {chunk['file']}):\n")
+            context_parts.append(f"```{chunk['language']}\n{chunk['content']}\n```\n")
 
-            for chunk in batch:
-                # Generate embedding
-                embedding = self.embedding_model.encode(chunk["content"]).tolist()
+        return "\n".join(context_parts)
 
-                # Prepare metadata
-                metadata = {
-                    "source_file": chunk["source_file"],
-                    "language": chunk["language"],
-                    "chunk_id": chunk["chunk_id"],
-                    "total_chunks": chunk["total_chunks"],
-                    "full_path": chunk["full_path"],
+    def _build_prompt(self, question: str, context: str) -> str:
+        """Build the prompt for the LLM"""
+        prompt = f"""You are a helpful code assistant. Answer the user's question based on the provided code context.
+
+Context from codebase:
+{context}
+
+User Question: {question}
+
+Instructions:
+- Answer based on the code snippets provided above
+- Be specific and reference actual code when relevant
+- If the context doesn't contain enough information, say so
+- Provide code examples when helpful
+
+Answer:"""
+        return prompt
+
+    def _call_llm(self, prompt: str) -> str:
+        """Call the LLM and get response"""
+        try:
+            if self.llm_backend == "ollama":
+                response = self._llm_client.generate(
+                    model=self.model,
+                    prompt=prompt,
+                    options={
+                        "temperature": 0.7,
+                        "num_predict": 500,
+                    },
+                )
+                return response["response"]
+
+            elif self.llm_backend == "openai":
+                response = self._llm_client.ChatCompletion.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a helpful code assistant.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.7,
+                    max_tokens=500,
+                )
+                return response.choices[0].message.content
+
+        except Exception as e:
+            return f"Error calling LLM: {str(e)}"
+
+    def ask(self, question: str, n_chunks: int = 5) -> Dict:
+        """
+        Ask a question about the codebase
+
+        Args:
+            question: The question to ask
+            n_chunks: Number of relevant code chunks to retrieve
+
+        Returns:
+            Dictionary with 'answer' and 'sources'
+        """
+        try:
+            # Step 1: Retrieve relevant code chunks
+            results = self.vectorizer.search_similar(question, n_results=n_chunks)
+
+            if not results["documents"][0]:
+                return {
+                    "answer": "No relevant code found in the repository.",
+                    "sources": [],
                 }
 
-                batch_ids.append(self.generate_id(chunk))
-                batch_documents.append(chunk["content"])
-                batch_metadatas.append(metadata)
-                batch_embeddings.append(embedding)
+            # Step 2: Parse results
+            retrieved_chunks = []
+            for doc, meta, dist in zip(
+                results["documents"][0],
+                results["metadatas"][0],
+                results["distances"][0],
+            ):
+                retrieved_chunks.append(
+                    {
+                        "content": doc,
+                        "file": meta["source_file"],
+                        "language": meta["language"],
+                        "similarity": 1 - dist,  # Convert distance to similarity
+                        "preview": doc[:150] + "..." if len(doc) > 150 else doc,
+                    }
+                )
 
-            # Store batch
-            self.collection.upsert(
-                ids=batch_ids,
-                documents=batch_documents,
-                metadatas=batch_metadatas,
-                embeddings=batch_embeddings,
-            )
+            # Step 3: Format context
+            context = self._format_context(retrieved_chunks)
 
-            print(
-                f"💾 Saved batch {i // batch_size + 1}/{(len(chunks) - 1) // batch_size + 1}"
-            )
+            # Step 4: Build prompt
+            prompt = self._build_prompt(question, context)
 
-        print(f"✅ Stored {len(chunks)} chunks in vector database")
-        print(f"📈 Collection count: {self.collection.count()}")
+            # Step 5: Get LLM response
+            answer = self._call_llm(prompt)
 
-    def search_similar(self, query, n_results=5):
-        """Search for similar code chunks"""
-        # Embed the query
-        query_embedding = self.embedding_model.encode(query).tolist()
+            return {"answer": answer.strip(), "sources": retrieved_chunks}
 
-        # Search
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            include=["documents", "metadatas", "distances"],
-        )
-
-        return results
-
-    def get_stats(self):
-        """Get database statistics"""
-        return {
-            "total_chunks": self.collection.count(),
-            "collection_name": self.collection.name,
-        }
+        except Exception as e:
+            return {
+                "answer": f"Error processing question: {str(e)}",
+                "sources": [],
+            }
 
 
-# Test embedding
+# Test the query engine
 if __name__ == "__main__":
+    from vectorizer import CodeVectorizer
+
+    # Initialize vectorizer
     vectorizer = CodeVectorizer()
 
-    # Test search with dummy data
-    test_chunks = [
-        {
-            "content": "def get_user(id):\n    return db.query(User).filter(User.id == id).first()",
-            "source_file": "test.py",
-            "language": "py",
-            "chunk_id": 0,
-            "total_chunks": 1,
-            "full_path": "test.py",
-        }
-    ]
+    # Initialize query engine
+    engine = CodeQueryEngine(
+        vectorizer=vectorizer, llm_backend="ollama", model="codellama:7b"
+    )
 
-    vectorizer.embed_and_store(test_chunks)
+    # Test query
+    result = engine.ask("How does the code vectorizer work?")
+    print("\n🤖 Answer:")
+    print(result["answer"])
 
-    # Test search
-    results = vectorizer.search_similar("How to fetch user from database?")
-    print("\n🔍 Search results:")
-    for i, (doc, meta, dist) in enumerate(
-        zip(results["documents"][0], results["metadatas"][0], results["distances"][0])
-    ):
-        print(f"\n{i + 1}. Similarity: {1 - dist:.3f}")
-        print(f"   File: {meta['source_file']}")
-        print(f"   Preview: {doc[:100]}...")
+    if result["sources"]:
+        print("\n📚 Sources:")
+        for i, source in enumerate(result["sources"], 1):
+            print(f"{i}. {source['file']} (similarity: {source['similarity']:.2f})")

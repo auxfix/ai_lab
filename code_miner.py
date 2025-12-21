@@ -15,6 +15,11 @@ class CodeMiner:
             "dist",
             "build",
             "venv",
+            ".venv",
+            "env",
+            ".env",
+            "chroma_db",
+            ".chroma",
         }
         self.code_extensions = {
             ".py",

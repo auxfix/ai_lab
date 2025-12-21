@@ -34,6 +34,10 @@ class CodeVectorizer:
 
     def embed_and_store(self, chunks, batch_size=100):
         """Embed chunks and store in vector database"""
+        if not chunks:
+            print("⚠️ No chunks to embed!")
+            return
+
         print(f"🧠 Embedding {len(chunks)} chunks...")
 
         # Process in batches to avoid memory issues

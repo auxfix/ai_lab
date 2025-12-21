@@ -32,6 +32,10 @@ class CodeRAGOrchestrator:
         chunker = SmartCodeChunker(chunk_size=800, chunk_overlap=150)
         chunks = chunker.chunk_batch(code_files)
 
+        if not chunks:
+            print("❌ No chunks created from code files!")
+            return False
+
         # Step 3: Create embeddings and store
         self.vectorizer = CodeVectorizer(
             model_name="all-MiniLM-L6-v2", persist_dir="./chroma_db"
@@ -44,11 +48,16 @@ class CodeRAGOrchestrator:
             print("📂 Using existing embeddings...")
 
         # Step 4: Initialize query engine
-        self.engine = CodeQueryEngine(
-            vectorizer=self.vectorizer,
-            llm_backend="ollama",  # Change to "openai" if preferred
-            model="codellama:7b",  # Or "llama3:8b", "mistral:7b"
-        )
+        try:
+            self.engine = CodeQueryEngine(
+                vectorizer=self.vectorizer,
+                llm_backend="ollama",  # Change to "openai" if preferred
+                model="codellama:7b",  # Or "llama3:8b", "mistral:7b"
+            )
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to initialize LLM: {e}")
+            print("You can still use the vectorizer for searches, but LLM queries won't work.")
+            return False
 
         print("✅ Setup complete!")
         return True
