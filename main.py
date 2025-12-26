@@ -56,7 +56,7 @@ class CodeRAGOrchestrator:
             self.engine = CodeQueryEngine(
                 vectorizer=self.vectorizer,
                 llm_backend="ollama",  # Change to "openai" if preferred
-                model="codellama:34b",  # Larger model for better quality! You have the VRAM
+                model="codellama:13b",  # Larger model for better quality! You have the VRAM
             )
         except Exception as e:
             print(f"⚠️ Warning: Failed to initialize LLM: {e}")
