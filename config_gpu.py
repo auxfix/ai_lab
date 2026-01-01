@@ -47,7 +47,7 @@ LLM_CONFIG = {
     "backend": "ollama",
     
     # Recommended models for your VRAM
-    "model": "codellama:34b",  # Best for code, fits perfectly
+    "model": "codellama_13b",  # Best for code, fits perfectly
     
     "options": {
         "temperature": 0.7,

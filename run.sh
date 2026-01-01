@@ -37,7 +37,7 @@ if command -v ollama &> /dev/null; then
     if ! ollama list | grep -q "codellama:34b"; then
         echo "📥 Downloading CodeLlama 34B model (optimized for your GPU - ~19GB)..."
         echo "⚡ This will utilize your RTX 3090's 24GB VRAM"
-        ollama pull codellama:34b
+        ollama pull codellama:13b
     else
         echo "✅ CodeLlama 34B model already installed"
     fi
