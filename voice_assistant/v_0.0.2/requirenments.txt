@@ -1,0 +1,7 @@
+openai-whisper
+torch
+transformers
+sounddevice
+numpy
+pyaudio
+TTS>=0.20.2
