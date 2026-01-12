@@ -26,14 +26,17 @@ class VoiceCompanion:
     def __init__(
         self, tts_engine="coqui", coqui_model="tts_models/en/ljspeech/tacotron2-DDC"
     ):
+        with torch.no_grad():
+            torch.cuda.empty_cache()
+
         # Load Whisper model
         self.whisper_model = whisper.load_model("base")
 
         # Load GPT-NeoX-20B (requires significant VRAM)
-        print("Loading GPT-NeoX-20B...")
-        self.tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b")
+        print("Loading gpt-oss-20B...")
+        self.tokenizer = AutoTokenizer.from_pretrained("openai/gpt-oss-20b")
         self.model = AutoModelForCausalLM.from_pretrained(
-            "EleutherAI/gpt-neox-20b", torch_dtype=torch.float16, device_map="auto"
+            "openai/gpt-oss-20b", dtype=torch.float16, device_map="auto"
         )
 
         # Initialize TTS engine
@@ -54,7 +57,6 @@ class VoiceCompanion:
             # Default voice settings (can be changed)
             self.voice_settings = {
                 "speaker": None,  # For multi-speaker models
-                "language": "en",  # Language code
                 "emotion": None,  # Emotion for emotional TTS models
                 "speed": 1.0,  # Speech speed
             }
@@ -332,15 +334,15 @@ if __name__ == "__main__":
         # Try different models:
         # coqui_model="tts_models/en/ljspeech/tacotron2-DDC"  # Default
         # coqui_model="tts_models/en/vctk/vits"  # Multi-speaker
-        # coqui_model="tts_models/en/jenny/jenny"  # Female voice
+        coqui_model="tts_models/en/jenny/jenny"  # Female voice
     )
 
     # Optional: List available models
-    # companion.list_coqui_models()
+    companion.list_coqui_models()
 
     # Optional: Change voice settings (for multi-speaker models)
     # companion.set_voice_settings(speaker="p225", speed=1.1)
 
     # Run conversation
     # Set use_mic=True to use microphone input
-    companion.run_conversation(use_mic=False)
+    companion.run_conversation(use_mic=True)
