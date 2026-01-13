@@ -216,9 +216,7 @@ class VoiceCompanion:
 
         self.tts.tts_to_file(
             text=text,
-            speaker_wav="my/cloning/audio.wav",
-            language="en",
-            file_path="~/anser.wav",
+            file_path="anser.wav",
         )
 
     def _play_audio(self, audio_data, sample_rate=22050):
@@ -433,7 +431,7 @@ if __name__ == "__main__":
     # In initialization:
     companion = VoiceCompanion(
         tts_engine="coqui",
-        coqui_model="tts_models/en/thorsten/tacotron2-DDC",  # Faster, multi-speaker
+        coqui_model="tts_models/en/ljspeech/tacotron2-DDC",  # Faster, multi-speaker
         llm_model=selected_model,
         use_4bit=True,
     )
